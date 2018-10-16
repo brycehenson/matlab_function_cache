@@ -1,14 +1,15 @@
 function [fun_out,fun_opts,cache_opts]=function_cache(varargin)
 %flexible disk based cache with reasonable optimizations
 %to improve
-% ccheck for hash collision on input options
-% memory based cache
-% optional estimated write time to compare with exe time and prevent write
-% hash function name if too long
-% add option to prevent writing cache
+% - memory based cache
+% - optional estimated write time to compare with exe time and prevent write
+%   - add option to prevent writing cache cache_opts.force_no_write=true;
+% - hash function name if too long
 
-%cache_opts,function_handle,var_opts
+
 %mandatory
+%cache_opts,function_handle,var_opts
+
 
 cache_opts=varargin{1};
 fun_handle=varargin{2};
@@ -38,11 +39,17 @@ if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end
 fun_str=func2str(fun_handle);
 hash_fun_inputs=DataHash(fun_opts, hash_opt);
 
+%hash the function name if its too long
+if numel(fun_str)>numel(hash_fun_inputs)
+    fun_str=DataHash(fun_str, hash_opt);
+end
 if cache_opts.force_recalc && cache_opts.force_cache
     error('force_recalc and force_cache both true, make up your mind!!!')
 end
 
-if ~cache_opts.force_recalc
+load_from_cache_logic=~cache_opts.force_recalc;
+
+if load_from_cache_logic
     dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat']);
     dir_content=dir(dir_q);
     file_names_raw = {dir_content.name};
@@ -67,11 +74,35 @@ if ~cache_opts.force_recalc
         cache_opts.force_cache=false;
     end    
     cache_clean(cache_opts,fun_str,hash_fun_inputs)
-end
 
+    
+    if cache_opts.force_cache
+        if numel(file_names_raw)==0
+             load_from_cache_logic=false;
+        else
+            cache_file_name=file_names_raw{1};
+        end
+    else
+        if  sum(fname_match)~=0
+            first_true_idx = find(fname_match, 1, 'first'); %realy there should never be two identical ones
+            %check for a hash collision
+            cache_file_name=file_names_raw{first_true_idx};
+            fun_opts_new=fun_opts;
+            cache_file_path=fullfile(cache_opts.dir,cache_file_name);
+            load(cache_file_path,'fun_opts')
+            if ~isequal(fun_opts_new,fun_opts)
+                %hash collsion check failed
+                warning('hash collision detected\n')
+                load_from_cache_logic=false;
+            end
+        else
+            load_from_cache_logic=false;
+        end
+    end
+end
 %
 
-if  ~cache_opts.force_cache && (cache_opts.force_recalc || sum(fname_match)==0)
+if  ~load_from_cache_logic 
     if cache_opts.verbose>0, fprintf('cache miss\n'), end
     cache_stats=[];
     %dummy cache is a cache file that only exists to direct this script to run the funtion, it will have its data
@@ -107,14 +138,8 @@ if  ~cache_opts.force_cache && (cache_opts.force_recalc || sum(fname_match)==0)
     %cache_clean(cache_opts,fun_handle,dir_content)
 else
     if cache_opts.verbose>0, fprintf('cache hit\n'), end
-    if cache_opts.force_cache
-        cache_file_name=file_names_raw{1};
-    else
-        first_true_idx = find(fname_match, 1, 'first'); %realy there should never be two identical ones
-        cache_file_name=file_names_raw{first_true_idx};
-    end
-    
     if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
+    
     cache_file_path=fullfile(cache_opts.dir,cache_file_name);
     %this is also very fast (~1ms) so no need to time
     load(cache_file_path,'cache_stats')

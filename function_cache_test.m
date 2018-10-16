@@ -1,7 +1,16 @@
+
+
+%add all subfolders to the path
+this_folder = fileparts(which(mfilename));
+% Add that folder plus all subfolders to the path.
+addpath(genpath(this_folder));
+
+%%
+
+
 %function_cache_test
 copt=[];
 copt.force_cache=true;
-copt.force_rerun=true;
 copt.verbose=3;
 copt.dir=fullfile('.','cache');
 function_cache(copt,@magic,{1e4});
@@ -67,7 +76,6 @@ fprintf('time cache %.3f s  brute %.3f s\n',cache_time,brute_time)
 copt=[];
 copt.force_cache=false;
 copt.force_recalc=false;
-copt.force_no_write=true; %to be implemented
 copt.verbose=1;
 copt.dir=fullfile('.','cache');
 hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
@@ -89,7 +97,7 @@ fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
 copt=[];
 copt.force_cache=false;
 copt.force_recalc=false;
-copt.depth_n=100;
+copt.depth_n=300;
 copt.verbose=3;
 copt.dir=fullfile('.','cache');
 sizes=linspace(10,1e2,200);
@@ -97,4 +105,23 @@ iimax=numel(sizes);
 for ii=1:iimax
     function_cache(copt,@magic,{sizes(ii)});
 end
+
+
+
+%% Test function name hashing
+copt=[];
+copt.force_cache=false;
+copt.force_recalc=false;
+copt.verbose=3;
+copt.dir=fullfile('.','cache');
+hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
+hash_opt.Method = 'SHA-512'; 
+%note this is the wrong usage!
+fun_in={10^3.2,hash_opt};
+test_fun=@(x,y) DataHash(sum(magic(x).^2.12345648756465741257655213762412342312), y);
+out1=function_cache(copt,test_fun,fun_in);
+out2=test_fun(fun_in{:});
+logical_str={'fail','pass'};
+fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
+
 
