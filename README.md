@@ -12,6 +12,8 @@ In my data processing workflow I commonly end up writing my own caching function
 
 ## To Do
 contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
+- hash collision check
+- change to hash of function name when too long
 - documentation and code flow checks
 - more testing, particulary agianst memoize()
 - smart cache cleaning
