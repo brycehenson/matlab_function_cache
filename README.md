@@ -1,5 +1,5 @@
 # matlab_function_cache
-***Bryce M. Henson***
+***Bryce M. Henson***  
 A custom disk based function cache for malab.
 
 In my data processing workflow I commonly end up writing my own caching functionality into the fucntions that do the heavy lifting such as importing large datasets. This project aims to create a common utility that can easily be wrapped arround the heavy parts to speed up multiple calls.
