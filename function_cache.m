@@ -167,7 +167,8 @@ else
         load(cache_file_path,'fun_opts','fun_out')
         cache_stats.load_time=toc;
         if cache_opts.verbose>1, fprintf('Done\n'), end
-        if cache_opts.verbose>2, fprintf('cache load time: %.3fs\n',cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache load time      : %.3fs\n',cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache speedup factor : %.3f \n',cache_stats.fun_time/cache_stats.load_time), end
     else
         %deleting the data from cache
         if ~cache_stats.dummy

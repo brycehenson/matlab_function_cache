@@ -8,12 +8,12 @@ In my data processing workflow I commonly end up writing my own caching function
 - cached inputs give fast lookup
 - if the load time is longer than the calculation time will not load again (will just calculate the function)
   - in this case it removes the data in the cache file but keeps it as a pointer to do the calculation
-  
+- will hash function string name if too long  
+- hash collision check
+- indicated cache speedup for high verbose
 
 ## To Do
 contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
-- hash collision check
-- change to hash of function name when too long
 - documentation and code flow checks
 - more testing, particulary agianst memoize()
 - smart cache cleaning
