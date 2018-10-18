@@ -1,11 +1,13 @@
 function cache_clean(cache_opts,fun_str,hash_fun_inputs)
-%should add option for cache too old
 %clean up the cache directory
 %dont delete what the main function is about to load
 %many ways to clean up
 %   remove oldest creation first
 %   remove oldest acessed first
 %may not handle directories correctly
+% to improve
+%   should add option for cache too old
+%   should add ability to clean up not just the function that is being evaluated
 
 dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str,cache_opts.delim,'*.mat']);
 dir_content=dir(dir_q);

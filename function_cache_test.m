@@ -6,6 +6,10 @@ this_folder = fileparts(which(mfilename));
 addpath(genpath(this_folder));
 
 %%
+cache_clear
+
+
+%%
 %function_cache_test
 copt=[];
 function_cache([],@magic,{1e4});
@@ -15,8 +19,8 @@ function_cache([],@magic,{1e4});
 %%
 %function_cache_test
 copt=[];
-copt.force_cache=false;
-copt.do_save_factor=1e3;
+copt.force_cache_save=true;
+%copt.do_save_factor=1e3;
 
 copt.verbose=3;
 copt.dir=fullfile('.','cache');
@@ -30,12 +34,14 @@ hash_opt.Method = 'SHA-512';
 %if the hash_opt were to change then function_cache would not know about it
 test_fun=@(x) DataHash(magic(x), hash_opt);
 out1=function_cache(copt,test_fun,{1e2});
+out1=out1{:};
 %%
 hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
 hash_opt.Method = 'MD5'; 
 input={1e1};
 out2=test_fun(input{:});
 out3=function_cache(copt,test_fun,input);
+out3=out3{:};
 %the change to test_fun has not been applied even tho the hash_opt has
 isequal(out1,out2)
 isequal(out2,out3)
@@ -45,6 +51,7 @@ test_fun=@(x) DataHash(magic(x), hash_opt);
 out3=test_fun(input{:});
 %and call the cache, it increctly thinks that the function is equal and loads from disk
 out4=function_cache(copt,test_fun,input);
+out4=out4{:};
 isequal(out3,out4)
 
 %% the correct way
@@ -54,6 +61,7 @@ test_fun=@(x,y) DataHash(sum(magic(x)^50), y);
 out3=test_fun(fun_in{:});
 %and call the cache, it increctly thinks that the function is equal and loads from disk
 out4=function_cache(copt,test_fun,fun_in);
+out4=out4{:};
 isequal(out3,out4)
 
 
