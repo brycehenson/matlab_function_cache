@@ -4,6 +4,17 @@ A custom disk based function cache for malab.
 
 In my data processing workflow I commonly end up writing my own caching functionality into the fucntions that do the heavy lifting such as importing large datasets. This project aims to create a common utility that can easily be wrapped arround the heavy calculation parts to speed up multiple calls.
 
+## Usage
+for functions that return a single output
+```
+simple_function_cache([],@magic,{1e4})
+```
+for multiple outputs
+```
+outputs=function_cache([],@complicated_function,{1e4,'option1',34});
+output1=outputs{1}
+```
+
 ## Features
 - cached inputs give fast lookup
 - function output is not saved in the cache file in the folowing conditions, rather it is just used as a 'dummy' to instruct a function eval
