@@ -8,7 +8,7 @@ In my data processing workflow I commonly end up writing my own caching function
 - cached inputs give fast lookup
 - function output is not saved in the cache file in the folowing conditions, rather it is just used as a 'dummy' to instruct a function eval
   - if the last load time is longer than the calculation time
-  - if the predicted load time is longer than the calculation time
+  - if the predicted load time (based on the in memory output size) at the first function evaluation is longer than the calculation time
 - will hash function string name if too long  
 - hash collision check
 - indicated cache speedup for high verbose
@@ -16,9 +16,10 @@ In my data processing workflow I commonly end up writing my own caching function
 
 ## To Do
 contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
-- use estimated write speed to estimate if its worth saving the data and abort the save
 - documentation and code flow checks
-- more testing, particulary agianst memoize()
+- more testing, 
+  - want to go through every evaluation path
+  - performance, particulary agianst memoize()
 - smart cache cleaning
   - first in first out is the current method
   - ranking the use/cost of each may be helpfull. eg remove large mediaum age files before older dummy files
