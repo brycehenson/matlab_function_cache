@@ -12,7 +12,7 @@ simple_function_cache([],@magic,{1e4})
 for multiple outputs
 ```
 outputs=function_cache([],@complicated_function,{1e4,'option1',34});
-output1=outputs{1}
+[output1,output2]=outputs{1:2}
 ```
 
 ## Features
