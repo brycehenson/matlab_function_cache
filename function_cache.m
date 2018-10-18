@@ -10,45 +10,52 @@ function [fun_out,fun_opts,cache_opts]=function_cache(varargin)
 %mandatory
 %cache_opts,function_handle,var_opts
 
+%hash collision
+%   - the probablility with even the pleb grade MD2 is 1/(2^128) I really dont think its worth worrying about this
+%   problem
 
+%hash string
+% can use urlencode and the 'base64' option to decrease charaters from 32 to 24
+
+
+%split input
 cache_opts=varargin{1};
 fun_handle=varargin{2};
 fun_opts=varargin{3:end};
-
 %optional inputs
 if ~isfield(cache_opts,'dir'),cache_opts.dir=fullfile('.','cache'); end
 if ~isfield(cache_opts,'force_cache'),cache_opts.force_cache=false; end
 if ~isfield(cache_opts,'force_recalc'),cache_opts.force_recalc=false; end
 if ~isfield(cache_opts,'verbose'),cache_opts.verbose=1; end
+if ~isfield(cache_opts,'depth_gb'),cache_opts.clean_cache=true; end
 if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=1000; end
 if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=10; end
 if ~isfield(cache_opts,'depth_seconds'),cache_opts.depth_seconds=60*60*24*30; end %default at one month old
+if ~isfield(cache_opts,'save_speed_mbs'),cache_opts.load_speed=100; end %estimated save speed in Mb/s
+if ~isfield(cache_opts,'do_save_factor'),cache_opts.do_save_factor=3; end %how much longer est save can be than calc to continue
 
 %START internal options, no need to change
 cache_opts.delim='__'; %double _ to prevent conflicts with function names
 cache_opts.file_name_start='cache';
-
-hash_opt.Format = 'hex';   %because \ can be produced from the 'base64' option
-hash_opt.Method = 'MD2'; 
+hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
+hash_opt.Method = 'MD2';     %dont need that many bits
 %END internal options,
 
 if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
-%check that directory exists
-if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end
+if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
 
-fun_str=func2str(fun_handle);
-hash_fun_inputs=DataHash(fun_opts, hash_opt);
-
-%hash the function name if its too long
-if numel(fun_str)>numel(hash_fun_inputs)
-    fun_str=DataHash(fun_str, hash_opt);
+fun_str=func2str(fun_handle); %turn function to string
+hash_fun_inputs=urlencode(DataHash(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
+if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
+    fun_str=urlencode(DataHash(fun_str, hash_opt));
 end
+
 if cache_opts.force_recalc && cache_opts.force_cache
     error('force_recalc and force_cache both true, make up your mind!!!')
 end
 
 load_from_cache_logic=~cache_opts.force_recalc;
-
+%look for a file that matches this function call
 if load_from_cache_logic
     dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat']);
     dir_content=dir(dir_q);
@@ -70,98 +77,67 @@ if load_from_cache_logic
     %pass only file names that have the options hash as the third part
     fname_match(fname_match)=cellfun(@(x) isequal(hash_fun_inputs,x{3}),file_names_split(fname_match));
     if cache_opts.force_cache && numel(file_names_raw)==0
-        warning('no cache files found that are suitable, will have to run function');
+        warning('force_cache option:no cache files found that are suitable, will have to run function');
         cache_opts.force_cache=false;
-    end    
-    cache_clean(cache_opts,fun_str,hash_fun_inputs)
-
+    end
+    %i think this operation should go elsewhere
+    if cache_opts.clean_cache
+        cache_clean(cache_opts,fun_str,hash_fun_inputs)
+    end
+    
     
     if cache_opts.force_cache
+        %catch the case that the force_cache flag was used but there is nothing matching that function call
         if numel(file_names_raw)==0
              load_from_cache_logic=false;
         else
+            %to improve should use the latest cache file, unsure about current behaviour
             cache_file_name=file_names_raw{1};
         end
     else
         if  sum(fname_match)~=0
             first_true_idx = find(fname_match, 1, 'first'); %realy there should never be two identical ones
-            %check for a hash collision
             cache_file_name=file_names_raw{first_true_idx};
-            fun_opts_new=fun_opts;
             cache_file_path=fullfile(cache_opts.dir,cache_file_name);
-            load(cache_file_path,'fun_opts')
-            if ~isequal(fun_opts_new,fun_opts)
-                %hash collsion check failed
-                warning('hash collision detected\n')
-                load_from_cache_logic=false;
-            end
+            % ======= HASH COLLISION CHECK ======
+            % this is soooo unlikely (P~1/(2^128) for MD2) you can leave it commented out
+            % ========START COLLISION CHECK ======
+%             fun_opts_new=fun_opts;
+%             load(cache_file_path,'fun_opts')
+%             if ~isequal(fun_opts_new,fun_opts)
+%                %hash collsion check failed, strictly speaking it should go check other hash matches but the
+%                %probability ~0
+%                warning('hash collision detected abandon cache load\n')
+%                load_from_cache_logic=false;
+%             end
+            % ========END COLLISION CHECK ======
         else
+            %couldnt find any matches so will just have to run function
             load_from_cache_logic=false;
         end
     end
 end
 %
 
-if  ~load_from_cache_logic 
-    if cache_opts.verbose>0, fprintf('cache miss\n'), end
-    cache_stats=[];
-    %dummy cache is a cache file that only exists to direct this script to run the funtion, it will have its data
-    %removed
-    cache_stats.dummy=false; 
-    tic;
-    %calculate the function
-    if cache_opts.verbose>1, fprintf('Calculating function...'), end
-    fun_out=fun_handle(fun_opts{:});
-    cache_stats.fun_time=toc;
-    if cache_opts.verbose>1, fprintf('Done\n'), end
-    if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
-    nowdt=datetime('now');
-    cache_stats.fun_eval_datetime.posix=posixtime(nowdt);
-    cache_stats.fun_eval_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
-    cache_file_name=['cache',cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat'];
-    if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
-    cache_file_path=fullfile(cache_opts.dir,cache_file_name);
-    tic
-    save(cache_file_path,'cache_opts','fun_opts','fun_handle','fun_out','-v7.3');
-    cache_stats.save_time=toc;
-    if cache_opts.verbose>2, fprintf('output save time: %.3fs\n',cache_stats.save_time), end
-    %this is fast so no need to time it
-    save(cache_file_path,'cache_stats','-append');
-    %warn the user if the save time was longer than the run time
-    run_save_factor=2;
-    if cache_opts.verbose>1 && cache_stats.save_time>cache_stats.fun_time*run_save_factor
-        fprintf(2,'WARNING: save time %.1f x function execute time\n',cache_stats.save_time/cache_stats.fun_time)
-        fprintf(2,'It is unlikely that there will be any cache speedup\n')
-    end
-    
-    %cleanup cache
-    %cache_clean(cache_opts,fun_handle,dir_content)
-else
+
+if load_from_cache_logic 
     if cache_opts.verbose>0, fprintf('cache hit\n'), end
     if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
-    
     cache_file_path=fullfile(cache_opts.dir,cache_file_name);
-    %this is also very fast (~1ms) so no need to time
-    load(cache_file_path,'cache_stats')
-    %total_cache_overhead=cache_stats.save_time;
+    load(cache_file_path,'cache_stats') %this is also very fast (~1ms) so no need to time
     %update the last time the cache was loaded, even when the function was run instead
     nowdt=datetime('now');
     cache_stats.cache_load_datetime.posix=posixtime(nowdt);
     cache_stats.cache_load_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
     
-    load_the_cache=~cache_stats.dummy;
-    load_time_existed=false;
-    if isfield(cache_stats,'load_time') && load_the_cache
-        load_time_existed=true;
+    load_from_cache_logic=~cache_stats.dummy;
+    if isfield(cache_stats,'load_time') && load_from_cache_logic
         %total_cache_overhead=cache_stats.save_time+cache_stats.load_time;
         if cache_stats.load_time>cache_stats.fun_time*2 %add a user option for the multipler here;
-            load_the_cache=false;
-            if cache_opts.verbose>0
-                fprintf('loading too slow last time, will run function instead\n') 
-            end
+            load_from_cache_logic=false;
         end
     end
-    if load_the_cache
+    if load_from_cache_logic
         if cache_opts.verbose>1, fprintf('loading from disk...'), end
         tic
         load(cache_file_path,'fun_opts','fun_out')
@@ -170,23 +146,78 @@ else
         if cache_opts.verbose>2, fprintf('cache load time      : %.3fs\n',cache_stats.load_time), end
         if cache_opts.verbose>2, fprintf('cache speedup factor : %.3f \n',cache_stats.fun_time/cache_stats.load_time), end
     else
+        if cache_opts.verbose>0
+            fprintf('loading is too slow, will run function instead\n') 
+        end
         %deleting the data from cache
-        if ~cache_stats.dummy
-            if cache_opts.verbose>2, fprintf('Deleteing cache value to save space\n'), end
+        if ~cache_stats.dummy %dummy flag means that it was already deleted
+            if cache_opts.verbose>2, fprintf('Deleting cache value to save space\n'), end
             delete_data_from_cache(cache_file_path)
             cache_stats.dummy=true;
         end
-        if cache_opts.verbose>1, fprintf('Calculating function...'), end
-        tic
-        fun_out=fun_handle(fun_opts{:});
-        cache_stats.fun_time=toc;
-        if cache_opts.verbose>1, fprintf('Done\n'), end
-        if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
     end
     save(cache_file_path,'cache_stats','-append')
+else
+    if cache_opts.verbose>0, fprintf('cache miss\n'), end
+    cache_stats=[];
+    %dummy cache is a cache file that only exists to direct this script to run the funtion, it will have its data
+    %removed
+    cache_stats.dummy=false; 
 end
-if cache_opts.verbose>0, fprintf('=============function_cache Done=============\n'), end
 
+if  ~load_from_cache_logic 
+    %calculate the function  
+    if cache_opts.verbose>1, fprintf('==========START Calculating Function=========\n'), end
+    tic;
+    fun_out{:}=fun_handle(fun_opts{:}); %run the function
+    cache_stats.fun_time=toc;
+    if cache_opts.verbose>1, fprintf('===========END Calculating Function==========\n'), end
+    if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
+    nowdt=datetime('now');
+    cache_stats.fun_eval_datetime.posix=posixtime(nowdt);
+    cache_stats.fun_eval_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
+    cache_file_name=['cache',cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat'];
+    if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
+    cache_file_path=fullfile(cache_opts.dir,cache_file_name);
+    run_save_factor=2; %should make user var
+    
+    if ~cache_stats.dummy
+        %figure out how large the output is in memory
+        w=whos('fun_out');
+        cache_stats.size_out_mem=w.bytes;
+        if cache_opts.verbose>2, fprintf('function output size is %fMB in memory\n',cache_stats.size_out_mem*1e-6), end
+        %estimate how long it will take to save the output
+        est_save_time=(cache_stats.size_out_mem*1e-6)/cache_opts.load_speed;
+        if est_save_time>cache_opts.do_save_factor*cache_stats.fun_time
+            if cache_opts.verbose>1
+                fprintf('if cache is saved, the estimated load time is %.1f x function execute time\n',est_save_time/cache_stats.fun_time)
+                fprintf('will not save cashe!\n')
+            end
+            cache_stats.dummy=true;
+        end
+        if cache_stats.dummy %if this is the first function eval and decide to slow to save
+            save(cache_file_path,'cache_opts','fun_opts','fun_handle','-v7.3');
+        else
+            tic
+            save(cache_file_path,'cache_opts','fun_opts','fun_handle','fun_out','-v7.3');
+            cache_stats.save_time=toc;
+            if cache_opts.verbose>2, fprintf('output save time: %.3fs\n',cache_stats.save_time), end
+            %warn the user if the save time was longer than the run time and NOT cache_stats.dummy
+            if cache_opts.verbose>1 && cache_stats.save_time>cache_stats.fun_time*run_save_factor
+                warning(' save time %.1f x function execute time',cache_stats.save_time/cache_stats.fun_time)
+                warning('It is unlikely that there will be any cache speedup')
+            end
+            saved_dir=dir(cache_file_path);
+            cache_stats.size_out_disk=saved_dir.bytes;
+            if cache_opts.verbose>2
+                fprintf('cache disk compression %.1f x \n',cache_stats.size_out_mem/cache_stats.size_out_disk)
+            end
+        end
+    end %prev dummy cache existed and was just running functtion
+    save(cache_file_path,'cache_stats','-append'); %this is fast so no need to time it
+end
+
+if cache_opts.verbose>0, fprintf('=============function_cache Done=============\n'), end
 end
 
 function delete_data_from_cache(cache_file_path)

@@ -6,11 +6,18 @@ this_folder = fileparts(which(mfilename));
 addpath(genpath(this_folder));
 
 %%
-
-
 %function_cache_test
 copt=[];
-copt.force_cache=true;
+function_cache([],@magic,{1e4});
+
+
+
+%%
+%function_cache_test
+copt=[];
+copt.force_cache=false;
+copt.do_save_factor=1e3;
+
 copt.verbose=3;
 copt.dir=fullfile('.','cache');
 function_cache(copt,@magic,{1e4});
