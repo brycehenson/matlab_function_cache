@@ -36,7 +36,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %       cache_opts.depth_gb             - size of cache files to keep for THIS FUNCTION ONLY all others are
 %                                         ignored
 %       cache_opts.depth_seconds        - oldest file to keep for THIS FUNCTION ONLY all others are ignored
-%       cache_opts.load_speed_mbs       - estimated disk read speed in Mb/s, for estimating if its worth writing
+%       cache_opts.load_speed_mbs       - estimated disk read speed in MB/s, for estimating if its worth writing
 %                                         the cache file
 %       cache_opts.do_save_factor       - how much longer est load can be than calc to continue with saving cache
 %                                         this also can be used to compensate for the mem/disk size compression
@@ -85,6 +85,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %    - selector for cache_opts.force_cache_load
 %    - memory based cache using global
 %    - force_cache_nosave
+%    - poor performance saving cells
 %
 % Author: Bryce Henson
 % email: Bryce.Henson@live.com
@@ -106,10 +107,11 @@ if ~isfield(cache_opts,'clean_cache'),cache_opts.clean_cache=true; end
 if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=1000; end
 if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=10; end
 if ~isfield(cache_opts,'depth_seconds'),cache_opts.depth_seconds=60*60*24*30; end %default at one month old
-if ~isfield(cache_opts,'load_speed_mbs'),cache_opts.load_speed_mbs=100; end %estimated read speed in Mb/s
+if ~isfield(cache_opts,'load_speed_mbs'),cache_opts.load_speed_mbs=400; end %estimated read speed in MB/s
 %how much longer est load can be than calc to continue, this also can be used to compensate for the mem/disk size compression
-if ~isfield(cache_opts,'do_save_factor'),cache_opts.do_save_factor=3; end 
+if ~isfield(cache_opts,'do_save_factor'),cache_opts.do_save_factor=1.0; end 
 if ~isfield(cache_opts,'do_load_factor'),cache_opts.do_load_factor=1.2; end %how much longer est save can be than calc to continue
+if ~isfield(cache_opts,'save_compressed'),cache_opts.save_compressed=false; end %if the cache should use compression
 
 %START internal options, no need to change
 cache_opts.delim='__'; %double _ to prevent conflicts with function names
@@ -131,6 +133,12 @@ end
 
 if cache_opts.force_recalc && cache_opts.force_cache_load
     error('force_recalc and force_cache_load both true, make up your mind!!!')
+end
+
+if cache_opts.save_compressed
+    save_compressed_cell={'-v7.3'};
+else
+    save_compressed_cell={'-nocompression','-v7.3'}; %
 end
 
 load_from_cache_logic=~cache_opts.force_recalc;
@@ -222,8 +230,12 @@ if load_from_cache_logic
         load(cache_file_path,'fun_args','fun_out')
         cache_stats.load_time=toc;
         if cache_opts.verbose>1, fprintf('Done\n'), end
-        if cache_opts.verbose>2, fprintf('cache load time      : %.3fs\n',cache_stats.load_time), end
-        if cache_opts.verbose>2, fprintf('cache speedup factor : %.3f \n',cache_stats.fun_time/cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache load time       : %.3fs\n',cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache load speed(disk): %.3f MB/s\n',...
+                cache_stats.size_out_disk*1e-6/cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache load speed(mem) : %.3f MB/s\n',...
+                cache_stats.size_out_mem*1e-6/cache_stats.load_time), end
+        if cache_opts.verbose>2, fprintf('cache speedup factor  : %.3f \n',cache_stats.fun_time/cache_stats.load_time), end
     else
         if cache_opts.verbose>0
             fprintf('loading is too slow, will run function instead\n') 
@@ -268,17 +280,17 @@ if  ~load_from_cache_logic
         %estimate how long it will take to save the output
         est_load_time=(cache_stats.size_out_mem*1e-6)/cache_opts.load_speed_mbs;
         if ~cache_opts.force_cache_save && est_load_time>cache_opts.do_save_factor*cache_stats.fun_time  
-            if cache_opts.verbose>1
+            if cache_opts.verbose>0
                 fprintf('if cache is saved, the estimated load time is %.1f x function execute time\n',est_load_time/cache_stats.fun_time)
                 fprintf('will not save cashe!\n')
             end
             cache_stats.dummy=true;
         end
         if cache_stats.dummy %if this is the first function eval and decide to slow to save, so will save as a dummy
-            save(cache_file_path,'cache_opts','fun_args','fun_handle','-v7.3');
+            save(cache_file_path,'cache_opts','fun_args','fun_handle','-nocompression','-v7.3'); 
         else
             tic
-            save(cache_file_path,'cache_opts','fun_args','fun_handle','fun_out','-v7.3');
+            save(cache_file_path,'cache_opts','fun_args','fun_handle','fun_out',save_compressed_cell{:});
             cache_stats.save_time=toc;
             if cache_opts.verbose>2, fprintf('output save time: %.3fs\n',cache_stats.save_time), end
             %warn the user if the save time was longer than the run time and NOT cache_stats.dummy
@@ -289,7 +301,7 @@ if  ~load_from_cache_logic
             saved_dir=dir(cache_file_path);
             cache_stats.size_out_disk=saved_dir.bytes;
             if cache_opts.verbose>2
-                fprintf('cache disk compression %.1f x \n',cache_stats.size_out_mem/cache_stats.size_out_disk)
+                fprintf('mem to disk compression %.1f x \n',cache_stats.size_out_mem/cache_stats.size_out_disk)
             end
         end
     end %prev dummy cache existed and was just running functtion

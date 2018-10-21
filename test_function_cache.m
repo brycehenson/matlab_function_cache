@@ -8,33 +8,95 @@ addpath(genpath(this_folder));
 
 
 %%
-hash_opt=[];
-hash_opt.Format = 'base64'; 
-hash_opt.Method = 'SHA-512'; 
-cache_clear
-
+copt=[];
+copt.verbose=3;
+cache_clear 
 %lets define a reall slow function with a reasonably small output
-test_fun=@(x,y) DataHash(sum(inv(magic(x)^2)), y);
-fun_in={round(rand(1)*10)+10^3.6,hash_opt};
+test_fun=@slow_test_fun1;
+fun_in={10^7,1e6};
 %call the cache for the first time
-tic
-out2=function_cache([],test_fun,fun_in);
-cache_runtime1=toc;
+timer1=tic;
+out2=function_cache(copt,test_fun,fun_in);
+cache_runtime1=toc(timer1);
 out2=out2{:};
 %then the function by itself
-tic
+timer1=tic;
 out1=test_fun(fun_in{:});
-fun_runtime=toc;
+fun_runtime=toc(timer1);
 %and then the cache again
-tic
-out3=function_cache([],test_fun,fun_in);
-cache_runtime2=toc;
+timer1=tic;
+out3=function_cache(copt,test_fun,fun_in);
+cache_runtime2=toc(timer1);
 out3=out3{:};
-fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+cache_overhead_time=[cache_runtime1-fun_runtime];
+fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
+cache_speedup_time=[fun_runtime-cache_runtime2];
+fprintf('repeats to win back overhead %.2f',cache_overhead_time/cache_speedup_time)
 isequal(out1,out2,out3)
 
-%this doesn't make any sense why should just calling somehing inside another function make it soo much faster
+%% slow with small output
+copt=[];
+copt.verbose=3;
+copt.save_compressed=false;
+cache_clear 
+%lets define a reall slow function with a reasonably small output
+test_fun=@slow_test_fun2;
+fun_in={1,1e6};
+%call the cache for the first time
+timer1=tic;
+out2=function_cache(copt,test_fun,fun_in);
+cache_runtime1=toc(timer1);
+out2=out2{:};
+%then the function by itself
+timer1=tic;
+out1=test_fun(fun_in{:});
+fun_runtime=toc(timer1);
+%and then the cache again
+timer1=tic;
+out3=function_cache(copt,test_fun,fun_in);
+cache_runtime2=toc(timer1);
+out3=out3{:};
+cache_overhead_time=[cache_runtime1-fun_runtime];
+cache_speedup_time=[fun_runtime-cache_runtime2];
+logic_str = {'FAIL', 'pass'};
+fprintf('test outputs equal      : %s\n',logic_str{isequal(out1,out2,out3)+1})
+fprintf('test saved cache faster : %s\n',logic_str{(cache_speedup_time>0)+1})
+fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
+fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
 
+
+%% slow with large output
+copt=[];
+copt.verbose=3;
+copt.save_compressed=false;
+cache_clear 
+%lets define a reall slow function with a reasonably small output
+test_fun=@slow_test_fun2;
+fun_in={1,1e8};
+%call the cache for the first time
+timer1=tic;
+out2=function_cache(copt,test_fun,fun_in);
+cache_runtime1=toc(timer1);
+out2=out2{:};
+%then the function by itself
+timer1=tic;
+out1=test_fun(fun_in{:});
+fun_runtime=toc(timer1);
+%and then the cache again
+timer1=tic;
+out3=function_cache(copt,test_fun,fun_in);
+cache_runtime2=toc(timer1);
+out3=out3{:};
+cache_overhead_time=[cache_runtime1-fun_runtime];
+cache_speedup_time=[fun_runtime-cache_runtime2];
+logic_str = {'FAIL', 'pass'};
+fprintf('test outputs equal      : %s\n',logic_str{isequal(out1,out2,out3)+1})
+fprintf('test saved cache faster : %s\n',logic_str{(cache_speedup_time>0)+1})
+fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
+fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
 
 
 %%
@@ -170,3 +232,30 @@ logical_str={'fail','pass'};
 fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
 
 
+
+%%
+function out=slow_test_fun1(complexity,size)
+%output is higly compressable
+hash_opt=[];
+hash_opt.Format = 'base64'; 
+hash_opt.Method = 'SHA-512'; 
+x=round(sqrt(complexity));
+size=round(size);
+%lets define a reall slow function with a reasonably small output
+out= DataHash(sum(inv(magic(x)^2)), hash_opt);
+%and repeat it lots of time
+out=repmat(out,[size,1]);
+end
+
+function out=slow_test_fun2(runtime,size)
+tic
+%lets define a reall slow function with a reasonably small output
+rng(0);
+out=rand(1,size);
+wait_time=runtime-toc;
+if wait_time>0
+    pause(wait_time);
+else
+    warning('runtime exceeded requested')
+end
+end
