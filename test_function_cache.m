@@ -1,12 +1,40 @@
 
-
 %add all subfolders to the path
 this_folder = fileparts(which(mfilename));
 % Add that folder plus all subfolders to the path.
 addpath(genpath(this_folder));
 
 %%
+
+
+%%
+hash_opt=[];
+hash_opt.Format = 'base64'; 
+hash_opt.Method = 'SHA-512'; 
 cache_clear
+
+%lets define a reall slow function with a reasonably small output
+test_fun=@(x,y) DataHash(sum(inv(magic(x)^2)), y);
+fun_in={round(rand(1)*10)+10^3.6,hash_opt};
+%call the cache for the first time
+tic
+out2=function_cache([],test_fun,fun_in);
+cache_runtime1=toc;
+out2=out2{:};
+%then the function by itself
+tic
+out1=test_fun(fun_in{:});
+fun_runtime=toc;
+%and then the cache again
+tic
+out3=function_cache([],test_fun,fun_in);
+cache_runtime2=toc;
+out3=out3{:};
+fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+isequal(out1,out2,out3)
+
+%this doesn't make any sense why should just calling somehing inside another function make it soo much faster
+
 
 
 %%
@@ -14,6 +42,10 @@ cache_clear
 copt=[];
 function_cache([],@magic,{1e4});
 
+
+%%
+
+simple_function_cache([],@magic,{1e2})
 
 
 %%
@@ -75,7 +107,6 @@ copt.verbose=0;
 copt.dir=fullfile('.','cache');
 hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
 hash_opt.Method = 'SHA-512'; 
-%this is the correct usage
 fun_in={10^3.0,hash_opt};
 test_fun=@(x,y) DataHash(sum(magic(x)^50), y);
 cache_time=timeit(@() function_cache(copt,test_fun,fun_in));
@@ -95,7 +126,6 @@ copt.verbose=1;
 copt.dir=fullfile('.','cache');
 hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
 hash_opt.Method = 'SHA-512'; 
-%note this is the wrong usage!
 fun_in={10^3.8,hash_opt};
 test_fun=@(x,y) DataHash(sum(magic(x)^2), y);
 out1=function_cache(copt,test_fun,fun_in);

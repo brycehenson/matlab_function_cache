@@ -1,40 +1,108 @@
-function [fun_out,fun_opts,cache_opts]=function_cache(varargin)
-%flexible disk based cache with some reasonable optimizations
-% - hash function name if too long
-% - can cache file into dummy that just directs it to run function if no speedup
-%   - estimates if load time will be longer than function run time (on first function run)
+function [fun_out,fun_args]=function_cache(varargin)
+%function_cache - flexible disk based cache of a matlab function call
+%                 with some reasonable optimizations.
+% This code takes a function handle and some input to that function and will
+% look for a cached version. If it exsts (cache hit) it will just load the 
+% saved output and retunr that. Otherwise (cache miss) it will run
+% the function and then save the output for the next time this is asked
+% for. 
+% The output is saved in the format 
+%      'cache__[function handle str|function handle hash]__[inputshash].mat'
+% The function name is hashed if it is longer than the hash would be.
+% There are a few basic optimizations:
+% - can make a 'dummy' cache file that just directs the code to run function if no cache speedup, used for:
+%   - if after first function eval, load time estimate (from output size in memory)
+%     will be longer than function run time
 %   - actual load time was longer than last function eval time
+%
+% The cache is cleaned based on removing everything older than cache_opts.depth_seconds 
+% then oldest loaded killed(deleted) first unitl cache_opts.depth_gb ,cache_opts.depth_n is satisfied.
+% hash collisions the probablility with even the pleb grade MD2 is 1/(2^128) but if you need a collsion check
+% then you can un-comment whats below '========START COLLISION CHECK ======'
 
-%to improve
-% - memory based cache using global
-% - function to delete everything in cache
-% - optional estimated write time to compare with exe time and prevent write
-%   - add option to prevent writing cache cache_opts.force_no_write=true;
+% Syntax:  [fun_out,fun_args_out]=function_cache(cache_opts,function_handle,fun_args)
+%
+% Inputs:
+%    cache_opts            - options structure, all fields optional, for basic use just pass []
+%       cache_opts.dir                  - string, cache directory
+%       cache_opts.verbose              - how much output 0 to 3
+%       cache_opts.force_cache_save     - force saving the cache file even if it would be slower
+%       cache_opts.force_cache_load     - force loading from the cache even if the fun_args are wrong
+%                                         [TO DO] Implement some kind of picking for this case
+%       cache_opts.force_recalc         - force the function recalculation
+%       cache_opts.clean_cache          - logical, do the cache clean, for more speed turn off
+%       cache_opts.depth_n              - number of cache files to keep for THIS FUNCTION ONLY all others are
+%                                         ignored
+%       cache_opts.depth_gb             - size of cache files to keep for THIS FUNCTION ONLY all others are
+%                                         ignored
+%       cache_opts.depth_seconds        - oldest file to keep for THIS FUNCTION ONLY all others are ignored
+%       cache_opts.load_speed_mbs       - estimated disk read speed in Mb/s, for estimating if its worth writing
+%                                         the cache file
+%       cache_opts.do_save_factor       - how much longer est load can be than calc to continue with saving cache
+%                                         this also can be used to compensate for the mem/disk size compression
+%       cache_opts.do_load_factor       - how much longer the last load can be compared to calc without just
+%                                         turning it into a dummy and running the function
+%    fun_handle            - function handle that you wish to evaluate
+%    fun_args              - arguments for the fun_handle, will be run as fun_handle(fun_args)
+% Outputs:
+%    fun_out   - struct, containing all the outputs from fun_out{:}=fun_handle(fun_args)
+%                to use as notmal use [out1,out2]=fun_out{:}; or for single output functions consider simple_function_cache 
+%    fun_args  - the arguments the function was called with, only needes when the cache has been force loaded
 
+% Example: 
+%     hash_opt=[];
+%     hash_opt.Format = 'base64'; 
+%     hash_opt.Method = 'SHA-512'; 
+%     cache_clear
+%     %lets define a real slow function with a reasonably small output
+%     test_fun=@(x,y) DataHash(sum(inv(magic(x)^2)), y);
+%     fun_in={round(rand(1)*10)+10^3.6,hash_opt}; %add random to prevent any matlab layer caching
+%     %call the cache for the first time
+%     tic
+%     out2=function_cache([],test_fun,fun_in);
+%     cache_runtime1=toc;
+%     out2=out2{:};
+%     %then the function by itself
+%     tic
+%     out1=test_fun(fun_in{:});
+%     fun_runtime=toc;
+%     %and then the cache again
+%     tic
+%     out3=function_cache([],test_fun,fun_in);
+%     cache_runtime2=toc;
+%     out3=out3{:};
+%     fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+%     isequal(out1,out2,out3)
+% 
+%     Other m-files required: cache_clean,cache_clear
+%     Also See:simple_function_cache,test_function_cache,
+%     Subfunctions: delete_data_from_cache_file
+%     MAT-files required: none
+%
+% Known BUGS/ Possible Improvements
+%    - more commenting
+%    - global cache size limiting
+%    - selector for cache_opts.force_cache_load
+%    - memory based cache using global
+%    - force_cache_nosave
+%
+% Author: Bryce Henson
+% email: Bryce.Henson@live.com
+% Last revision:2018-08-19
 
-
-%mandatory
-%cache_opts,function_handle,var_opts
-
-%hash collision
-%   - the probablility with even the pleb grade MD2 is 1/(2^128) I really dont think its worth worrying about this
-%   problem
-
-%hash string
-% can use urlencode and the 'base64' option to decrease charaters from 32 to 24
-
+%------------- BEGIN CODE --------------
 
 %split input
 cache_opts=varargin{1};
 fun_handle=varargin{2};
-fun_opts=varargin{3:end};
+fun_args=varargin{3:end};
 %optional inputs
 if ~isfield(cache_opts,'dir'),cache_opts.dir=fullfile('.','cache'); end
 if ~isfield(cache_opts,'force_cache_save'),cache_opts.force_cache_save=false; end
 if ~isfield(cache_opts,'force_cache_load'),cache_opts.force_cache_load=false; end
 if ~isfield(cache_opts,'force_recalc'),cache_opts.force_recalc=false; end
 if ~isfield(cache_opts,'verbose'),cache_opts.verbose=1; end
-if ~isfield(cache_opts,'depth_gb'),cache_opts.clean_cache=true; end
+if ~isfield(cache_opts,'clean_cache'),cache_opts.clean_cache=true; end
 if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=1000; end
 if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=10; end
 if ~isfield(cache_opts,'depth_seconds'),cache_opts.depth_seconds=60*60*24*30; end %default at one month old
@@ -53,8 +121,10 @@ hash_opt.Method = 'MD2';     %dont need that many bits
 if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
 if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
 
+%hash string can use urlencode and the 'base64' option to decrease charaters from 32 to 24, without having any
+%issued with /*% in file names
 fun_str=func2str(fun_handle); %turn function to string
-hash_fun_inputs=urlencode(DataHash(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
+hash_fun_inputs=urlencode(DataHash(fun_args, hash_opt)); %hash the input and use urlencode to make it file system safe
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
     fun_str=urlencode(DataHash(fun_str, hash_opt));
 end
@@ -94,7 +164,6 @@ if load_from_cache_logic
         cache_clean(cache_opts,fun_str,hash_fun_inputs)
     end
     
-    
     if cache_opts.force_cache_load
         %catch the case that the force_cache flag was used but there is nothing matching that function call
         if numel(file_names_raw)==0
@@ -111,9 +180,9 @@ if load_from_cache_logic
             % this is soooo unlikely (P~1/(2^128) for MD2) you can leave it commented out
             % ========START COLLISION CHECK ======
 %             cache_file_path=fullfile(cache_opts.dir,cache_file_name);
-%             fun_opts_new=fun_opts;
-%             load(cache_file_path,'fun_opts')
-%             if ~isequal(fun_opts_new,fun_opts)
+%             fun_args_new=fun_args;
+%             load(cache_file_path,'fun_args')
+%             if ~isequal(fun_args_new,fun_args)
 %                %hash collsion check failed, strictly speaking it should go check other hash matches but the
 %                %probability ~0
 %                warning('hash collision detected abandon cache load\n')
@@ -150,7 +219,7 @@ if load_from_cache_logic
     if load_from_cache_logic
         if cache_opts.verbose>1, fprintf('loading from disk...'), end
         tic
-        load(cache_file_path,'fun_opts','fun_out')
+        load(cache_file_path,'fun_args','fun_out')
         cache_stats.load_time=toc;
         if cache_opts.verbose>1, fprintf('Done\n'), end
         if cache_opts.verbose>2, fprintf('cache load time      : %.3fs\n',cache_stats.load_time), end
@@ -179,7 +248,7 @@ if  ~load_from_cache_logic
     %calculate the function  
     if cache_opts.verbose>1, fprintf('==========START Calculating Function=========\n'), end
     tic;
-    fun_out{:}=fun_handle(fun_opts{:}); %run the function
+    fun_out{:}=fun_handle(fun_args{:}); %run the function
     cache_stats.fun_time=toc;
     if cache_opts.verbose>1, fprintf('===========END Calculating Function==========\n'), end
     if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
@@ -206,10 +275,10 @@ if  ~load_from_cache_logic
             cache_stats.dummy=true;
         end
         if cache_stats.dummy %if this is the first function eval and decide to slow to save, so will save as a dummy
-            save(cache_file_path,'cache_opts','fun_opts','fun_handle','-v7.3');
+            save(cache_file_path,'cache_opts','fun_args','fun_handle','-v7.3');
         else
             tic
-            save(cache_file_path,'cache_opts','fun_opts','fun_handle','fun_out','-v7.3');
+            save(cache_file_path,'cache_opts','fun_args','fun_handle','fun_out','-v7.3');
             cache_stats.save_time=toc;
             if cache_opts.verbose>2, fprintf('output save time: %.3fs\n',cache_stats.save_time), end
             %warn the user if the save time was longer than the run time and NOT cache_stats.dummy
