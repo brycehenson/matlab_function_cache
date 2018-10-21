@@ -1,5 +1,5 @@
 # matlab_function_cache
-***Bryce M. Henson***  
+**Bryce M. Henson**
 A custom disk based function cache for malab.
 
 In my data processing workflow I commonly end up writing my own caching functionality into the fucntions that do the heavy lifting such as importing large datasets. This project aims to create a common utility that can easily be wrapped arround the heavy calculations to speed up multiple calls and allow cache portability between computers.
@@ -42,5 +42,5 @@ contributors welcome! There is a lot to do to build this into a powerful tool. D
 
 ## Contributions  
 This project would not have been possible without the many open source tools that it is based on. In no particular order: 
-- ***Jan*** [DataHash](https://au.mathworks.com/matlabcentral/fileexchange/31272-datahash?focused=8037540&tab=function)
-- ***Denis Gilbert***    [M-file Header Template](https://au.mathworks.com/matlabcentral/fileexchange/4908-m-file-header-template)
+- **Jan** [DataHash](https://au.mathworks.com/matlabcentral/fileexchange/31272-datahash?focused=8037540&tab=function)
+- **Denis Gilbert**    [M-file Header Template](https://au.mathworks.com/matlabcentral/fileexchange/4908-m-file-header-template)
