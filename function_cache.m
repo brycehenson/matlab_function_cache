@@ -80,6 +80,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %     MAT-files required: none
 %
 % Known BUGS/ Possible Improvements
+%    - reduced file size by only taking part of hash
 %    - more commenting
 %    - global cache size limiting
 %    - selector for cache_opts.force_cache_load
@@ -93,9 +94,6 @@ function [fun_out,fun_args]=function_cache(varargin)
 
 %------------- BEGIN CODE --------------
 
-%adaptive hashing function
-hash_function=@DataHash;
-%GetMD5
 
 
 %split input
@@ -121,8 +119,17 @@ if ~isfield(cache_opts,'save_compressed'),cache_opts.save_compressed=false; end 
 %START internal options, no need to change
 cache_opts.delim='__'; %double _ to prevent conflicts with function names
 cache_opts.file_name_start='cache';
-hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
-hash_opt.Method = 'MD5';     %dont need that many bits
+
+
+%different hashing function
+% hash_opt=[];
+% hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
+% hash_opt.Method = 'MD5';     %dont need that many bits
+%hash_function=@(x) DataHash(x,hash_opt);
+%requires comiled MEX but is >3x faster
+hash_function=@(x) GetMD5(x,'Array'); 
+
+
 %END internal options,
 
 if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
@@ -134,13 +141,13 @@ fun_str=func2str(fun_handle); %turn function to string
 
 if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
 hash_time=tic;
-hash_fun_inputs=urlencode(hash_function(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
+hash_fun_inputs=urlencode(hash_function(fun_args)); %hash the input and use urlencode to make it file system safe
 hash_time=toc(hash_time);
 if cache_opts.verbose>1, fprintf('Done\n'), end
 if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
 
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
-    fun_str=urlencode(hash_function(fun_str, hash_opt));
+    fun_str=urlencode(hash_function(fun_str));
 end
 
 if cache_opts.force_recalc && cache_opts.force_cache_load
