@@ -47,14 +47,20 @@ if ~isfield(cache_opts,'do_load_factor'),cache_opts.do_load_factor=1.2; end %how
 cache_opts.delim='__'; %double _ to prevent conflicts with function names
 cache_opts.file_name_start='cache';
 hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
-hash_opt.Method = 'MD2';     %dont need that many bits
+hash_opt.Method = 'MD5';     %dont need that many bits
 %END internal options,
 
 if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
 if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
 
 fun_str=func2str(fun_handle); %turn function to string
+if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
+hash_time=tic;
 hash_fun_inputs=urlencode(DataHash(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
+hash_time=toc(hash_time);
+if cache_opts.verbose>1, fprintf('Done\n'), end
+if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
+
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
     fun_str=urlencode(DataHash(fun_str, hash_opt));
 end
@@ -170,6 +176,7 @@ if load_from_cache_logic
 else
     if cache_opts.verbose>0, fprintf('cache miss\n'), end
     cache_stats=[];
+    cache_stats.hash_time=hash_time;
     %dummy cache is a cache file that only exists to direct this script to run the funtion, it will have its data
     %removed
     cache_stats.dummy=false; 
