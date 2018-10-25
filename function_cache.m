@@ -132,7 +132,7 @@ hash_function=@(x) GetMD5(x,'Array');
 
 %END internal options,
 
-if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
+if cache_opts.verbose>0, fprintf('==========STARTING function_cache wrapper=========\n'), end
 if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
 
 %hash string can use urlencode and the 'base64' option to decrease charaters from 32 to 24, without having any
@@ -278,11 +278,11 @@ end
 
 if  ~load_from_cache_logic 
     %calculate the function  
-    if cache_opts.verbose>1, fprintf('==========START Calculating Function=========\n'), end
+    if cache_opts.verbose>1, fprintf('==========STARTING Calculating Function=========\n'), end
     tic;
     fun_out{:}=fun_handle(fun_args{:}); %run the function
     cache_stats.fun_time=toc;
-    if cache_opts.verbose>1, fprintf('===========END Calculating Function==========\n'), end
+    if cache_opts.verbose>1, fprintf('===========DONE Calculating Function==========\n'), end
     if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
     nowdt=datetime('now');
     cache_stats.fun_eval_datetime.posix=posixtime(nowdt);
@@ -327,7 +327,7 @@ if  ~load_from_cache_logic
     end %prev dummy cache existed and was just running functtion
     save(cache_file_path,'cache_stats','-append'); %this is fast so no need to time it
 end
-if cache_opts.verbose>0, fprintf('=============function_cache Done=============\n'), end
+if cache_opts.verbose>0, fprintf('==========DONE function_cache wrapper=========\n'), end
 end
 
 function delete_data_from_cache_file(cache_file_path)
