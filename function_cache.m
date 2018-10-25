@@ -24,6 +24,11 @@ function [fun_out,fun_opts,cache_opts]=function_cache(varargin)
 % can use urlencode and the 'base64' option to decrease charaters from 32 to 24
 
 
+%adaptive hashing function
+hash_function=@DataHash;
+%GetMD5
+
+
 %split input
 cache_opts=varargin{1};
 fun_handle=varargin{2};
@@ -56,13 +61,13 @@ if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that c
 fun_str=func2str(fun_handle); %turn function to string
 if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
 hash_time=tic;
-hash_fun_inputs=urlencode(DataHash(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
+hash_fun_inputs=urlencode(hash_function(fun_opts, hash_opt)); %hash the input and use urlencode to make it file system safe
 hash_time=toc(hash_time);
 if cache_opts.verbose>1, fprintf('Done\n'), end
 if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
 
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
-    fun_str=urlencode(DataHash(fun_str, hash_opt));
+    fun_str=urlencode(hash_function(fun_str, hash_opt));
 end
 
 if cache_opts.force_recalc && cache_opts.force_cache_load
