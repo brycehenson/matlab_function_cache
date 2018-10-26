@@ -30,7 +30,8 @@ outputs=function_cache([],@complicated_function,{1e4,'option1',34});
 
 ## To Do
 contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
-- decide if the cache options would be better passed as string value pairs
+- have default options written out as a file
+- change cache options to be passed as string value pairs
 - documentation and code flow checks
 - more testing, 
   - want to go through every evaluation path
