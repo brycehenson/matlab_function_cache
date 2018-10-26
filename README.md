@@ -19,7 +19,7 @@ outputs=function_cache([],@complicated_function,{1e4,'option1',34});
 ```
 
 ## Features
-- cached inputs give fast lookup
+- inputs are hashed using getmd5 for speed
 - function output is not saved in the cache file in the folowing conditions, rather it is just used as a 'dummy' to instruct a function eval
   - if the last load time is longer than the calculation time
   - if the predicted load time (based on the in memory output size) at the first function evaluation is longer than the calculation time
@@ -44,4 +44,5 @@ contributors welcome! There is a lot to do to build this into a powerful tool. D
 ## Contributions  
 This project would not have been possible without the many open source tools that it is based on. In no particular order: 
 - **Jan** [DataHash](https://au.mathworks.com/matlabcentral/fileexchange/31272-datahash?focused=8037540&tab=function)
+- **Jan** [GetMD5](https://au.mathworks.com/matlabcentral/fileexchange/25921-getmd5)
 - **Denis Gilbert**    [M-file Header Template](https://au.mathworks.com/matlabcentral/fileexchange/4908-m-file-header-template)
