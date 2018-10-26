@@ -280,7 +280,8 @@ if  ~load_from_cache_logic
     %calculate the function  
     if cache_opts.verbose>1, fprintf('==========STARTING Calculating Function=========\n'), end
     tic;
-    fun_out{:}=fun_handle(fun_args{:}); %run the function
+    fun_out=cell(1,nargout(fun_handle));
+    [fun_out{:}]=fun_handle(fun_args{:}); %run the function
     cache_stats.fun_time=toc;
     if cache_opts.verbose>1, fprintf('===========DONE Calculating Function==========\n'), end
     if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
