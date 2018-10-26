@@ -138,6 +138,7 @@ if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that c
 %hash string can use urlencode and the 'base64' option to decrease charaters from 32 to 24, without having any
 %issued with /*% in file names
 fun_str=func2str(fun_handle); %turn function to string
+if cache_opts.verbose>0, fprintf('==========%s\n',fun_str), end
 
 if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
 hash_time=tic;
@@ -147,7 +148,9 @@ if cache_opts.verbose>1, fprintf('Done\n'), end
 if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
 
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
-    fun_str=urlencode(hash_function(fun_str));
+    fun_str_or_hash=urlencode(hash_function(fun_str));
+else
+    fun_str_or_hash=fun_str;
 end
 
 if cache_opts.force_recalc && cache_opts.force_cache_load
@@ -163,7 +166,7 @@ end
 load_from_cache_logic=~cache_opts.force_recalc;
 %look for a file that matches this function call
 if load_from_cache_logic
-    dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat']);
+    dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str_or_hash,cache_opts.delim,hash_fun_inputs,'.mat']);
     dir_content=dir(dir_q);
     file_names_raw = {dir_content.name};
     %much of this processing is redundant with the dir_q comand
@@ -178,7 +181,7 @@ if load_from_cache_logic
     %pass only file names that start with cache_opts.file_name_start
     fname_match(fname_match)=cellfun(@(x) isequal(x{1},cache_opts.file_name_start),file_names_split(fname_match));
     %pass only file names that have the function string as the second part
-    fname_match(fname_match)=cellfun(@(x) isequal(fun_str,x{2}),file_names_split(fname_match));
+    fname_match(fname_match)=cellfun(@(x) isequal(fun_str_or_hash,x{2}),file_names_split(fname_match));
     match_all_but_hash=fname_match;
     %pass only file names that have the options hash as the third part
     fname_match(fname_match)=cellfun(@(x) isequal(hash_fun_inputs,x{3}),file_names_split(fname_match));
@@ -188,7 +191,7 @@ if load_from_cache_logic
     end
     %i think this operation should go elsewhere
     if cache_opts.clean_cache
-        cache_clean(cache_opts,fun_str,hash_fun_inputs)
+        cache_clean(cache_opts,fun_str_or_hash,hash_fun_inputs)
     end
     
     if cache_opts.force_cache_load
@@ -288,7 +291,7 @@ if  ~load_from_cache_logic
     nowdt=datetime('now');
     cache_stats.fun_eval_datetime.posix=posixtime(nowdt);
     cache_stats.fun_eval_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
-    cache_file_name=['cache',cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat'];
+    cache_file_name=['cache',cache_opts.delim,fun_str_or_hash,cache_opts.delim,hash_fun_inputs,'.mat'];
     if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
     cache_file_path=fullfile(cache_opts.dir,cache_file_name);
     run_save_factor=2; %should make user var
@@ -329,6 +332,7 @@ if  ~load_from_cache_logic
     save(cache_file_path,'cache_stats','-append'); %this is fast so no need to time it
 end
 if cache_opts.verbose>0, fprintf('==========DONE function_cache wrapper=========\n'), end
+if cache_opts.verbose>0, fprintf('==========%s\n',fun_str), end
 end
 
 function delete_data_from_cache_file(cache_file_path)
