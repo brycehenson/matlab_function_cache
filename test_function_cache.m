@@ -1,4 +1,10 @@
 
+%to add
+%large input test
+
+
+
+
 %add all subfolders to the path
 this_folder = fileparts(which(mfilename));
 % Add that folder plus all subfolders to the path.
@@ -42,7 +48,7 @@ copt.save_compressed=false;
 cache_clear 
 %lets define a reall slow function with a reasonably small output
 test_fun=@slow_test_fun2;
-fun_in={1,1e6};
+fun_in={1,1e7};
 %call the cache for the first time
 timer1=tic;
 out2=function_cache(copt,test_fun,fun_in);
@@ -60,11 +66,11 @@ out3=out3{:};
 cache_overhead_time=[cache_runtime1-fun_runtime];
 cache_speedup_time=[fun_runtime-cache_runtime2];
 logic_str = {'FAIL', 'pass'};
-fprintf('test outputs equal      : %s\n',logic_str{isequal(out1,out2,out3)+1})
-fprintf('test saved cache faster : %s\n',logic_str{(cache_speedup_time>0)+1})
-fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
-fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
-fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
+fprintf('TEST: outputs equal      : %s\n',logic_str{isequal(out1,out2,out3)+1})
+fprintf('TEST: saved cache faster : %s\n',logic_str{(cache_speedup_time>0)+1})
+fprintf('INFO: function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+fprintf('INFO: cache overhead %.2f ms\n',cache_overhead_time*1e3)
+fprintf('INFO: repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
 
 
 %% slow with large output

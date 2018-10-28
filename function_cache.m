@@ -80,6 +80,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %     MAT-files required: none
 %
 % Known BUGS/ Possible Improvements
+%    - reduced file size by only taking part of hash
 %    - more commenting
 %    - global cache size limiting
 %    - selector for cache_opts.force_cache_load
@@ -92,6 +93,8 @@ function [fun_out,fun_args]=function_cache(varargin)
 % Last revision:2018-08-19
 
 %------------- BEGIN CODE --------------
+
+
 
 %split input
 cache_opts=varargin{1};
@@ -116,19 +119,38 @@ if ~isfield(cache_opts,'save_compressed'),cache_opts.save_compressed=false; end 
 %START internal options, no need to change
 cache_opts.delim='__'; %double _ to prevent conflicts with function names
 cache_opts.file_name_start='cache';
-hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
-hash_opt.Method = 'MD2';     %dont need that many bits
+
+
+%different hashing function
+% hash_opt=[];
+% hash_opt.Format = 'base64';   %if using base64 the hash must be processed with urlencode() to make file sys safe
+% hash_opt.Method = 'MD5';     %dont need that many bits
+%hash_function=@(x) DataHash(x,hash_opt);
+%requires comiled MEX but is >3x faster
+hash_function=@(x) GetMD5(x,'Array'); 
+
+
 %END internal options,
 
-if cache_opts.verbose>0, fprintf('===========function_cache Starting===========\n'), end
+if cache_opts.verbose>0, fprintf('==========STARTING function_cache wrapper=========\n'), end
 if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
 
 %hash string can use urlencode and the 'base64' option to decrease charaters from 32 to 24, without having any
 %issued with /*% in file names
 fun_str=func2str(fun_handle); %turn function to string
-hash_fun_inputs=urlencode(DataHash(fun_args, hash_opt)); %hash the input and use urlencode to make it file system safe
+if cache_opts.verbose>0, fprintf('==========%s\n',fun_str), end
+
+if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
+hash_time=tic;
+hash_fun_inputs=urlencode(hash_function(fun_args)); %hash the input and use urlencode to make it file system safe
+hash_time=toc(hash_time);
+if cache_opts.verbose>1, fprintf('Done\n'), end
+if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
+
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
-    fun_str=urlencode(DataHash(fun_str, hash_opt));
+    fun_str_or_hash=urlencode(hash_function(fun_str));
+else
+    fun_str_or_hash=fun_str;
 end
 
 if cache_opts.force_recalc && cache_opts.force_cache_load
@@ -144,7 +166,7 @@ end
 load_from_cache_logic=~cache_opts.force_recalc;
 %look for a file that matches this function call
 if load_from_cache_logic
-    dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat']);
+    dir_q=fullfile(cache_opts.dir,[cache_opts.file_name_start,cache_opts.delim,fun_str_or_hash,cache_opts.delim,hash_fun_inputs,'.mat']);
     dir_content=dir(dir_q);
     file_names_raw = {dir_content.name};
     %much of this processing is redundant with the dir_q comand
@@ -159,7 +181,7 @@ if load_from_cache_logic
     %pass only file names that start with cache_opts.file_name_start
     fname_match(fname_match)=cellfun(@(x) isequal(x{1},cache_opts.file_name_start),file_names_split(fname_match));
     %pass only file names that have the function string as the second part
-    fname_match(fname_match)=cellfun(@(x) isequal(fun_str,x{2}),file_names_split(fname_match));
+    fname_match(fname_match)=cellfun(@(x) isequal(fun_str_or_hash,x{2}),file_names_split(fname_match));
     match_all_but_hash=fname_match;
     %pass only file names that have the options hash as the third part
     fname_match(fname_match)=cellfun(@(x) isequal(hash_fun_inputs,x{3}),file_names_split(fname_match));
@@ -169,7 +191,7 @@ if load_from_cache_logic
     end
     %i think this operation should go elsewhere
     if cache_opts.clean_cache
-        cache_clean(cache_opts,fun_str,hash_fun_inputs)
+        cache_clean(cache_opts,fun_str_or_hash,hash_fun_inputs)
     end
     
     if cache_opts.force_cache_load
@@ -251,6 +273,7 @@ if load_from_cache_logic
 else
     if cache_opts.verbose>0, fprintf('cache miss\n'), end
     cache_stats=[];
+    cache_stats.hash_time=hash_time;
     %dummy cache is a cache file that only exists to direct this script to run the funtion, it will have its data
     %removed
     cache_stats.dummy=false; 
@@ -258,16 +281,17 @@ end
 
 if  ~load_from_cache_logic 
     %calculate the function  
-    if cache_opts.verbose>1, fprintf('==========START Calculating Function=========\n'), end
+    if cache_opts.verbose>1, fprintf('==========STARTING Calculating Function=========\n'), end
     tic;
-    fun_out{:}=fun_handle(fun_args{:}); %run the function
+    fun_out=cell(1,nargout(fun_handle));
+    [fun_out{:}]=fun_handle(fun_args{:}); %run the function
     cache_stats.fun_time=toc;
-    if cache_opts.verbose>1, fprintf('===========END Calculating Function==========\n'), end
+    if cache_opts.verbose>1, fprintf('===========DONE Calculating Function==========\n'), end
     if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
     nowdt=datetime('now');
     cache_stats.fun_eval_datetime.posix=posixtime(nowdt);
     cache_stats.fun_eval_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
-    cache_file_name=['cache',cache_opts.delim,fun_str,cache_opts.delim,hash_fun_inputs,'.mat'];
+    cache_file_name=['cache',cache_opts.delim,fun_str_or_hash,cache_opts.delim,hash_fun_inputs,'.mat'];
     if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
     cache_file_path=fullfile(cache_opts.dir,cache_file_name);
     run_save_factor=2; %should make user var
@@ -307,7 +331,8 @@ if  ~load_from_cache_logic
     end %prev dummy cache existed and was just running functtion
     save(cache_file_path,'cache_stats','-append'); %this is fast so no need to time it
 end
-if cache_opts.verbose>0, fprintf('=============function_cache Done=============\n'), end
+if cache_opts.verbose>0, fprintf('==========DONE function_cache wrapper=========\n'), end
+if cache_opts.verbose>0, fprintf('==========%s\n',fun_str), end
 end
 
 function delete_data_from_cache_file(cache_file_path)
