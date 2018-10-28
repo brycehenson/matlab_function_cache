@@ -31,6 +31,8 @@ outputs=function_cache([],@complicated_function,{1e4,'option1',34});
 ## To Do
 contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
 - documentation and code flow checks
+- mock relative file paths
+  - so that cache can be portable between many computers when using the same central server
 - more testing, 
   - want to go through every evaluation path
   - performance, particulary agianst memoize()

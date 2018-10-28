@@ -99,6 +99,65 @@ fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
 fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
 
 
+%% Directory Hopping
+% this is a test for the relative file paths function
+%say your running a analysis function on a remote computer and the data is stored on a central server, It can be
+%(somtimes) advantagous to save that cache on the remote computer so that if the same analysis function is called on a
+%different computer it can see this centeral cache. However the problem is that while the locations are symanticaly the
+%same the literal paths are different (data at X:\data\ vs Y:\user\data\) the idea is that we pass a mock working
+%directory to the function_cache() along with a path to where in the input arguments it specifies the data path. This
+%could be implemented crudely by doing a cd call before and after the 'guts' of function_cache but this is somehwat
+%overhead laden.
+
+folder_names={'test','layer1'};
+mkdir(folder_names{1})
+mkdir(fullfile('.',folder_names{:}))
+rng(0);
+test_data=rand(1,1e5);
+test_data_orig=test_data;
+rel_file_path=fullfile('.',folder_names{:},'d.mat');
+abs_file_path=fullfile(pwd,folder_names{:},'d.mat'); 
+save(abs_file_path,'test_data')
+fopt_struct=[];
+fopt_struct.path=abs_file_path;
+test_data_loaded=data_load_test_fun(fopt_struct,1);
+
+
+%ok so now we need to tell the function_cache() where in the passed arguments is the path that we want it to save as if
+%it were relative. There seems to be no obvious way to do this in matlab in this dynamic manner
+copt=[];
+copt.verbose=3;
+copt.save_compressed=false;
+copt.mock_working_dir='C:\Users\Bryce\Dropbox\UNI\project\programs\matlab_function_cache\test\layer1';
+copt.path_directions={1,'path'};
+%lets define a reall slow function with a reasonably small output
+
+fun_in={fopt_struct,1e6};
+%call the cache for the first time
+timer1=tic;
+out2=function_cache(copt,test_fun,fun_in);
+cache_runtime1=toc(timer1);
+out2=out2{:};
+%then the function by itself
+timer1=tic;
+out1=test_fun(fun_in{:});
+fun_runtime=toc(timer1);
+%and then the cache again
+timer1=tic;
+out3=function_cache(copt,test_fun,fun_in);
+cache_runtime2=toc(timer1);
+out3=out3{:};
+cache_overhead_time=[cache_runtime1-fun_runtime];
+cache_speedup_time=[fun_runtime-cache_runtime2];
+logic_str = {'FAIL', 'pass'};
+fprintf('test outputs equal      : %s\n',logic_str{isequal(out1,out2,out3)+1})
+fprintf('test saved cache faster : %s\n',logic_str{(cache_speedup_time>0)+1})
+fprintf('function runtime %.2fms, cache runtimes %.2f ,%.2f ms\n',[fun_runtime,cache_runtime1,cache_runtime2]*1e3)
+fprintf('cache overhead %.2f ms\n',cache_overhead_time*1e3)
+fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_time)
+
+
+
 %%
 %function_cache_test
 copt=[];
@@ -120,7 +179,7 @@ copt.verbose=3;
 copt.dir=fullfile('.','cache');
 function_cache(copt,@magic,{1e4});
 
-%%
+%% HOW NOT TO USE THIS FUNCTION
 hash_opt=[];
 hash_opt.Format = 'base64';   %because \ can be produced from the 'base64' option
 hash_opt.Method = 'SHA-512'; 
@@ -149,7 +208,6 @@ out4=out4{:};
 isequal(out3,out4)
 
 %% the correct way
-
 fun_in={10^3.0,hash_opt};
 test_fun=@(x,y) DataHash(sum(magic(x)^50), y);
 out3=test_fun(fun_in{:});
@@ -259,3 +317,4 @@ else
     warning('runtime exceeded requested')
 end
 end
+
