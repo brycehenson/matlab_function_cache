@@ -107,43 +107,72 @@ fprintf('repeats to win back overhead %.2f\n',cache_overhead_time/cache_speedup_
 
 %% Directory Hopping
 % this is a test for the relative file paths function
+%case 1
 %say your running a analysis function on a remote computer and the data is stored on a central server, It can be
 %(somtimes) advantagous to save that cache on the remote computer so that if the same analysis function is called on a
 %different computer it can see this centeral cache. However the problem is that while the locations are symanticaly the
-%same the literal paths are different (data at X:\data\ vs Y:\user\data\) the idea is that we pass a mock working
+%same the literal paths are different (data at X:\data\ vs Y:\user\data\).
+%case 2
+%the idea is that we pass a mock working
 %directory to the function_cache() along with a path to where in the input arguments it specifies the data path. This
 %could be implemented crudely by doing a cd call before and after the 'guts' of function_cache but this is somehwat
-%overhead laden.
+%overhead laden. Insead we modify a version of the function arguments and hash that.
 
-folder_names={'test','layer1'};
+%first test the relative path generator
+mock_dir='C:\Users\Bryce\Dropbox\UNI\project\programs\matlab_function_cache\test\layer1';
+abs_path= 'C:\Users\Bryce\Dropbox\UNI\project\programs\matlab_function_cache\test\layer1\d.mat';
+[abs_path_no_file,name,ext] = fileparts(abs_path);
+abs_path_file=[name,ext]
+relativepath(abs_path_no_file,mock_dir)
+
+
+%%
+
+folder_names1={'test','layer1'};
 mkdir(folder_names{1})
 mkdir(fullfile('.',folder_names{:}))
 rng(0);
 test_data=rand(1,1e5);
 test_data_orig=test_data;
-rel_file_path=fullfile('.',folder_names{:},'d.mat');
-abs_file_path=fullfile(pwd,folder_names{:},'d.mat'); 
-save(abs_file_path,'test_data')
+rel_file_path=fullfile('.',folder_names1{:},'d.mat');
+abs_file_path1=fullfile(pwd,folder_names1{:},'d.mat'); 
+save(abs_file_path1,'test_data')
 fopt_struct=[];
-fopt_struct.path=abs_file_path;
-test_data_loaded=data_load_test_fun(fopt_struct,1);
-
-
-%ok so now we need to tell the function_cache() where in the passed arguments is the path that we want it to save as if
-%it were relative. There seems to be no obvious way to do this in matlab in this dynamic manner
+fopt_struct.path=abs_file_path1;
+fun_in={fopt_struct,1};
 copt=[];
 copt.verbose=3;
-copt.save_compressed=false;
-copt.mock_working_dir='C:\Users\Bryce\Dropbox\UNI\project\programs\matlab_function_cache\test\layer1';
+copt.mock_working_dir=fullfile(pwd,folder_names1{:});
 copt.path_directions={1,'path'};
-%lets define a reall slow function with a reasonably small output
-
-fun_in={fopt_struct,1e6};
-%call the cache for the first time
+test_data_loaded1=data_load_test_fun(fopt_struct,1);
 timer1=tic;
-out2=function_cache(copt,test_fun,fun_in);
+test_data_loaded2=function_cache(copt,@data_load_test_fun,fun_in);
 cache_runtime1=toc(timer1);
-out2=out2{:};
+
+%ok so now we move the data directory
+pause(3)
+folder_names2={'test','layer2'};
+movefile(fullfile('.',folder_names1{:}),fullfile('.',folder_names2{:}))
+
+
+%run again but now in a different directory
+abs_file_path2=fullfile(pwd,folder_names2{:},'d.mat'); 
+fopt_struct=[];
+fopt_struct.path=abs_file_path2;
+fun_in={fopt_struct,1};
+copt=[];
+copt.verbose=3;
+copt.mock_working_dir=fullfile(pwd,folder_names2{:});
+copt.path_directions={1,'path'};
+
+timer1=tic;
+test_data_loaded2=function_cache(copt,@data_load_test_fun,fun_in);
+cache_runtime2=toc(timer1);
+
+logic_str = {'FAIL', 'pass'};
+fprintf('Test: Speedup with directory movement : %s\n',logic_str{(cache_runtime2<cache_runtime1)+1})
+
+%%
 %then the function by itself
 timer1=tic;
 out1=test_fun(fun_in{:});
@@ -239,9 +268,9 @@ cache_time=timeit(@() function_cache(copt,test_fun,fun_in));
 out1=function_cache(copt,test_fun,fun_in);
 brute_time=timeit(@() test_fun(fun_in{:}));
 out2=test_fun(fun_in{:});
-logical_str={'fail','pass'};
-fprintf('Test Speedup       : %s\n',logical_str{(cache_time<brute_time)+1})
-fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
+logic_str={'fail','pass'};
+fprintf('Test: Speedup       : %s\n',logic_str{(cache_time<brute_time)+1})
+fprintf('Test: Equal Resluts : %s\n',logic_str{(isequal(out1,out2))+1})
 fprintf('time cache %.3f s  brute %.3f s\n',cache_time,brute_time)
 
 %% give it a real hard problem
@@ -256,8 +285,8 @@ fun_in={10^3.8,hash_opt};
 test_fun=@(x,y) DataHash(sum(magic(x)^2), y);
 out1=function_cache(copt,test_fun,fun_in);
 out2=test_fun(fun_in{:});
-logical_str={'fail','pass'};
-fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
+logic_str={'fail','pass'};
+fprintf('Test: Equal Results : %s\n',logic_str{(isequal(out1,out2))+1})
 
 
 
@@ -292,8 +321,8 @@ fun_in={10^3.2,hash_opt};
 test_fun=@(x,y) DataHash(sum(magic(x).^2.12345648756465741257655213762412342312), y);
 out1=function_cache(copt,test_fun,fun_in);
 out2=test_fun(fun_in{:});
-logical_str={'fail','pass'};
-fprintf('Test Equal Resluts : %s\n',logical_str{(isequal(out1,out2))+1})
+logic_str={'fail','pass'};
+fprintf('Test Equal Resluts : %s\n',logic_str{(isequal(out1,out2))+1})
 
 
 

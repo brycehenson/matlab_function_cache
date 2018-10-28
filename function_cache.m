@@ -80,6 +80,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %     MAT-files required: none
 %
 % Known BUGS/ Possible Improvements
+%    - undo relative file path for returned values
 %    - reduced file size by only taking part of hash
 %    - more commenting
 %    - global cache size limiting
@@ -99,9 +100,23 @@ function [fun_out,fun_args]=function_cache(varargin)
 %split input
 cache_opts=varargin{1};
 fun_handle=varargin{2};
-fun_args=varargin{3:end};
+fun_args=varargin{3};
 %optional inputs
-if ~isfield(cache_opts,'dir'),cache_opts.dir=fullfile('.','cache'); end
+if ~isfield(cache_opts,'dir') %in next version this should be changed to out_dir
+    if isfield(cache_opts,'mock_working_dir')
+        cache_opts.dir=fullfile(cache_opts.mock_working_dir,'cache');
+    else
+        cache_opts.dir=fullfile('.','cache'); 
+    end
+end
+if isfield(cache_opts,'mock_working_dir')
+    cache_opts.use_mock_working_dir=true;
+    if ~isfield(cache_opts,'path_directions')
+        error('for relative operation you must specify the path to the file name');
+    end
+else
+    cache_opts.use_mock_working_dir=false;
+end
 if ~isfield(cache_opts,'force_cache_save'),cache_opts.force_cache_save=false; end
 if ~isfield(cache_opts,'force_cache_load'),cache_opts.force_cache_load=false; end
 if ~isfield(cache_opts,'force_recalc'),cache_opts.force_recalc=false; end
@@ -128,9 +143,9 @@ cache_opts.file_name_start='cache';
 %hash_function=@(x) DataHash(x,hash_opt);
 %requires comiled MEX but is >3x faster
 hash_function=@(x) GetMD5(x,'Array'); 
-
-
 %END internal options,
+
+
 
 if cache_opts.verbose>0, fprintf('==========STARTING function_cache wrapper=========\n'), end
 if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that cache directory exists
@@ -140,9 +155,25 @@ if (exist(cache_opts.dir, 'dir') == 0), mkdir(cache_opts.dir); end %check that c
 fun_str=func2str(fun_handle); %turn function to string
 if cache_opts.verbose>0, fprintf('==========%s\n',fun_str), end
 
+
+if cache_opts.use_mock_working_dir
+    path_in_function_arg=fun_args{cache_opts.path_directions{1}}.(cache_opts.path_directions{2});
+    [abs_path_no_file,name,ext] = fileparts(path_in_function_arg);
+    file_name_ext=[name,ext];
+    rel_path=relativepath(abs_path_no_file,cache_opts.mock_working_dir);
+    rel_path=fullfile(rel_path,file_name_ext);
+    if cache_opts.verbose>2 
+        fprintf('Relative file path created as \n%s\n',rel_path)
+    end
+    fun_args_rel=fun_args;
+    fun_args_rel{cache_opts.path_directions{1}}.(cache_opts.path_directions{2})=rel_path;
+else
+    fun_args_rel=fun_args;
+end
+
 if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
 hash_time=tic;
-hash_fun_inputs=urlencode(hash_function(fun_args)); %hash the input and use urlencode to make it file system safe
+hash_fun_inputs=urlencode(hash_function(fun_args_rel)); %hash the input and use urlencode to make it file system safe
 hash_time=toc(hash_time);
 if cache_opts.verbose>1, fprintf('Done\n'), end
 if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
