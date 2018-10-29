@@ -122,8 +122,8 @@ if ~isfield(cache_opts,'force_cache_load'),cache_opts.force_cache_load=false; en
 if ~isfield(cache_opts,'force_recalc'),cache_opts.force_recalc=false; end
 if ~isfield(cache_opts,'verbose'),cache_opts.verbose=1; end
 if ~isfield(cache_opts,'clean_cache'),cache_opts.clean_cache=true; end
-if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=1000; end
-if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=10; end
+if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=10000; end
+if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=30; end
 if ~isfield(cache_opts,'depth_seconds'),cache_opts.depth_seconds=60*60*24*30; end %default at one month old
 if ~isfield(cache_opts,'load_speed_mbs'),cache_opts.load_speed_mbs=400; end %estimated read speed in MB/s
 %how much longer est load can be than calc to continue, this also can be used to compensate for the mem/disk size compression
