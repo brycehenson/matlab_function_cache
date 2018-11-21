@@ -29,6 +29,9 @@ function [fun_out,fun_args]=function_cache(varargin)
 %       cache_opts.force_cache_save     - force saving the cache file even if it would be slower
 %       cache_opts.force_cache_load     - force loading from the cache even if the fun_args are wrong
 %                                         [TO DO] Implement some kind of picking for this case
+%       cache_opts.recalc_if_older_than - posix time, if the function was calculated before this date then rerun the function
+%                                           handy for changes to code
+%                                           posixtime(datetime('2018-11-12 02:08','InputFormat','yyyy-MM-dd HH:mm'))
 %       cache_opts.force_recalc         - force the function recalculation
 %       cache_opts.clean_cache          - logical, do the cache clean, for more speed turn off
 %       cache_opts.depth_n              - number of cache files to keep for THIS FUNCTION ONLY all others are
@@ -80,6 +83,7 @@ function [fun_out,fun_args]=function_cache(varargin)
 %     MAT-files required: none
 %
 % Known BUGS/ Possible Improvements
+%       cache_opts.recalc_if_older_than
 %    - undo relative file path for returned values
 %    - reduced file size by only taking part of hash
 %    - more commenting
@@ -121,9 +125,10 @@ if ~isfield(cache_opts,'force_cache_save'),cache_opts.force_cache_save=false; en
 if ~isfield(cache_opts,'force_cache_load'),cache_opts.force_cache_load=false; end
 if ~isfield(cache_opts,'force_recalc'),cache_opts.force_recalc=false; end
 if ~isfield(cache_opts,'verbose'),cache_opts.verbose=1; end
+if ~isfield(cache_opts,'recalc_if_older_than'),cache_opts.recalc_if_older_than=-inf; end
 if ~isfield(cache_opts,'clean_cache'),cache_opts.clean_cache=true; end
-if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=1000; end
-if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=10; end
+if ~isfield(cache_opts,'depth_n'),cache_opts.depth_n=10000; end
+if ~isfield(cache_opts,'depth_gb'),cache_opts.depth_gb=30; end
 if ~isfield(cache_opts,'depth_seconds'),cache_opts.depth_seconds=60*60*24*30; end %default at one month old
 if ~isfield(cache_opts,'load_speed_mbs'),cache_opts.load_speed_mbs=400; end %estimated read speed in MB/s
 %how much longer est load can be than calc to continue, this also can be used to compensate for the mem/disk size compression
@@ -268,8 +273,11 @@ if load_from_cache_logic
     nowdt=datetime('now');
     cache_stats.cache_load_datetime.posix=posixtime(nowdt);
     cache_stats.cache_load_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
-    
     load_from_cache_logic=~cache_stats.dummy;
+    %test if the last time evaluated is older than recalc_if_older_than
+    if load_from_cache_logic && cache_stats.fun_eval_datetime.posix<cache_opts.recalc_if_older_than
+        load_from_cache_logic=false;
+    end
     %test if the load time last load was longer than the runtime, dont do this check if force_cache_save or force_cache_load
     if isfield(cache_stats,'load_time') && load_from_cache_logic && ~(cache_opts.force_cache_save || cache_opts.force_cache_load)
         %total_cache_overhead=cache_stats.save_time+cache_stats.load_time;
@@ -313,10 +321,10 @@ end
 if  ~load_from_cache_logic 
     %calculate the function  
     if cache_opts.verbose>1, fprintf('==========STARTING Calculating Function=========\n'), end
-    tic;
+    fun_out_tic=tic; %so that use of tic in the function does not throw off timing
     fun_out=cell(1,nargout(fun_handle));
     [fun_out{:}]=fun_handle(fun_args{:}); %run the function
-    cache_stats.fun_time=toc;
+    cache_stats.fun_time=toc(fun_out_tic);
     if cache_opts.verbose>1, fprintf('===========DONE Calculating Function==========\n'), end
     if cache_opts.verbose>2, fprintf('function execute time: %.3fs\n',cache_stats.fun_time), end
     nowdt=datetime('now');
