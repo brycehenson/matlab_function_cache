@@ -268,12 +268,19 @@ if load_from_cache_logic
     if cache_opts.verbose>0, fprintf('cache hit\n'), end
     if cache_opts.verbose>2, fprintf('file name: %s\n',cache_file_name), end
     cache_file_path=fullfile(cache_opts.dir,cache_file_name);
-    load(cache_file_path,'cache_stats') %this is also very fast (~1ms) so no need to time
+    try %try to load cache
+        load(cache_file_path,'cache_stats') %this is also very fast (~1ms) so no need to time
+        load_from_cache_logic=~cache_stats.dummy;
+    catch
+        warning('cache may be corrupt deleting %s',cache_file_path)
+        delete(cache_file_path)
+        load_from_cache_logic=false;
+    end
     %update the last time the cache was loaded, even when the function was run instead
     nowdt=datetime('now');
     cache_stats.cache_load_datetime.posix=posixtime(nowdt);
     cache_stats.cache_load_datetime.iso=datestr(nowdt,'yyyy-mm-ddTHH:MM:SS.FFF');
-    load_from_cache_logic=~cache_stats.dummy;
+
     %test if the last time evaluated is older than recalc_if_older_than
     if load_from_cache_logic && cache_stats.fun_eval_datetime.posix<cache_opts.recalc_if_older_than
         load_from_cache_logic=false;
