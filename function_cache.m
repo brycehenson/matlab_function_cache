@@ -179,8 +179,10 @@ end
 if cache_opts.verbose>1, fprintf('Hashing function inputs...'), end
 hash_time=tic;
 hash_fun_inputs=urlencode(hash_function(fun_args_rel)); %hash the input and use urlencode to make it file system safe
+
 hash_time=toc(hash_time);
 if cache_opts.verbose>1, fprintf('Done\n'), end
+if cache_opts.verbose>2, fprintf('Hash   : %s\n',hash_fun_inputs), end
 if cache_opts.verbose>2, fprintf('input hashing time   : %.3fs\n',hash_time), end
 
 if numel(fun_str)>numel(hash_fun_inputs)%hash the function name if its too long
