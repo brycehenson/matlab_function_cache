@@ -196,7 +196,7 @@ if cache_opts.force_recalc && cache_opts.force_cache_load
 end
 
 if cache_opts.save_compressed
-    save_compressed_cell={'-v7.3'};
+    save_compressed_cell={'-v7'};
 else
     save_compressed_cell={'-nocompression','-v7.3'}; %
 end
