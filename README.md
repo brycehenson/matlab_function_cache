@@ -2,6 +2,8 @@
 **Bryce M. Henson**   
 A custom disk based function cache for malab.
 
+**This Code is ready for limited use in other projects** as the cache cleaning is not completely implemented.
+
 In my data processing workflow I commonly end up writing my own caching functionality into the fucntions that do the heavy lifting such as importing large datasets. This project aims to create a common utility that can easily be wrapped arround the heavy calculations to speed up multiple calls and allow cache portability between computers.
 
 This code takes a function handle and some input to that function and will look for a cached version. If it exsts (cache hit) it will just load the  saved output and retuns that. Otherwise (cache miss) it will run the function and then save the output for the next time this is asked for. 
@@ -29,7 +31,8 @@ outputs=function_cache([],@complicated_function,{1e4,'option1',34});
 - basic cache cleanup & clear
 
 ## To Do
-contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an email. 
+contributors welcome! There is a lot to do to build this into a powerful tool. Drop me an [email](mailto:bryce.m.henson+github.matlab_function_cache@gmail.com?subject=I%20would%20Like%20to%20Contribute[github][matlab_function_cache])
+.
 - have default options written out as a file
 - change cache options to be passed as string value pairs
 - documentation and code flow checks
