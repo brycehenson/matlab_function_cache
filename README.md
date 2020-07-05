@@ -1,4 +1,4 @@
-# matlab_function_cache
+# <img src="figs/github_logo.png" alt="matlab_function_cache" width="400"/> 
 **Bryce M. Henson**   
 A custom disk based function cache for malab.  
 **Status:** This Code is **ready for limited use** in other projects. Cache cleaning is not completely implemented.Testing is **not** fully implemented.
